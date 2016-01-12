@@ -172,18 +172,10 @@ module ActionDispatch
           prefix = action ? "#{action}_" : ""
           suffix = type
           if action.to_s == 'new'
-            HelperMethodBuilder.singular prefix, suffix
+            new(:singular_route_key, prefix, suffix)
           else
-            HelperMethodBuilder.plural prefix, suffix
+            new(:route_key, prefix, suffix)
           end
-        end
-
-        def self.singular(prefix, suffix)
-          new(->(name) { name.singular_route_key }, prefix, suffix)
-        end
-
-        def self.plural(prefix, suffix)
-          new(->(name) { name.route_key }, prefix, suffix)
         end
 
         def self.polymorphic_method(recipient, record_or_hash_or_array, action, type, options)
@@ -204,13 +196,11 @@ module ActionDispatch
             method, args = builder.handle_string record_or_hash_or_array
           when Class
             method, args = builder.handle_class record_or_hash_or_array
-
           when nil
             raise ArgumentError, "Nil location provided. Can't build URI."
           else
             method, args = builder.handle_model record_or_hash_or_array
           end
-
 
           if options.empty?
             recipient.send(method, *args)
@@ -232,7 +222,7 @@ module ActionDispatch
         end
 
         def handle_string_call(target, str)
-          target.send get_method_for_string str
+          target.send get_method_for_string(str)
         end
 
         def handle_class(klass)
@@ -249,7 +239,7 @@ module ActionDispatch
           model = record.to_model
           named_route = if model.persisted?
                           args << model
-                          get_method_for_string model.model_name.singular_route_key
+                          get_method_for_string singular_route_key(model.model_name)
                         else
                           get_method_for_class model
                         end
@@ -274,10 +264,10 @@ module ActionDispatch
               parent.to_s
             when Class
               args << parent
-              parent.model_name.singular_route_key
+              singular_route_key(parent.model_name)
             else
               args << parent.to_model
-              parent.to_model.model_name.singular_route_key
+              singular_route_key(parent.to_model.model_name)
             end
           }
 
@@ -286,14 +276,14 @@ module ActionDispatch
           when Symbol, String
             record.to_s
           when Class
-            @key_strategy.call record.model_name
+            send(@key_strategy, record.model_name)
           else
             model = record.to_model
             if model.persisted?
               args << model
-              model.model_name.singular_route_key
+              singular_route_key(model.model_name)
             else
-              @key_strategy.call model.model_name
+              send(@key_strategy, model.model_name)
             end
           end
 
@@ -305,8 +295,24 @@ module ActionDispatch
 
         private
 
+        def singular_route_key(model_name)
+          ActiveSupport::Inflector.singularize(_route_key(model_name))
+        end
+
+        def route_key(model_name)
+          if model_name.invariant?
+            _route_key(model_name) + "_index"
+          else
+            _route_key(model_name)
+          end
+        end
+
+        def _route_key(model_name)
+          ActiveSupport::Inflector.pluralize(model_name.param_key)
+        end
+
         def get_method_for_class(klass)
-          name   = @key_strategy.call klass.model_name
+          name = send(@key_strategy, klass.model_name)
           get_method_for_string name
         end
 

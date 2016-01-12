@@ -175,17 +175,23 @@ module ActiveModel
     end
 
     def route_key
+      ActiveSupport::Deprecation.warn("`route_key` is deprecated and will be removed without replacement in Rails 5.1.")
       @route_key ||= begin
-        route_key = @namespace ? ActiveSupport::Inflector.pluralize(param_key) : plural.dup
-        @singular_route_key = ActiveSupport::Inflector.singularize(route_key)
-        route_key << "_index" if plural == singular
-        route_key
+        load_route_key
+        @route_key
       end
     end
 
     def singular_route_key
-      route_key
-      @singular_route_key
+      ActiveSupport::Deprecation.warn("`singular_route_key` is deprecated and will be removed without replacement in Rails 5.1.")
+      @singular_route_key ||= begin
+        load_route_key
+        @singular_route_key
+      end
+    end
+
+    def invariant? # :nodoc:
+      plural == singular
     end
 
     # Transform the model name into a more human format, using I18n. By default,
@@ -223,6 +229,13 @@ module ActiveModel
     end
 
     private
+
+    def load_route_key
+      route_key = @namespace ? ActiveSupport::Inflector.pluralize(param_key) : plural.dup
+      @singular_route_key = ActiveSupport::Inflector.singularize(route_key)
+      route_key << "_index" if invariant?
+      @route_key = route_key
+    end
 
     def unnamespaced
       @name.sub(/^#{@namespace.name}::/, '') if @namespace
